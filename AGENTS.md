@@ -22,7 +22,10 @@ Use each source only for the responsibility it owns:
    authorize later changes. A semantic change is complete only when the
    specification is updated in the same change.
 3. Future architecture and implementation artifacts may realize the normative
-   contract but do not create or weaken product meaning.
+   contract but do not create or weaken product meaning. Derived architecture
+   and compatibility projections under `docs/architecture/` record derived
+   constraints and traceability and are non-authoritative for product
+   semantics.
 4. [`README.md`](README.md), generated views, tests, provider behavior, backend
    behavior, and historical `llm-runtime` mechanisms are non-authoritative for
    product semantics.
