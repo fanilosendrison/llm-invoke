@@ -1,0 +1,54 @@
+name: Vercel SDK evidence probe (non-normative)
+
+on:
+  push:
+    branches:
+      - audit/runtime-guarantee-preservation-20261017
+    paths:
+      - .github/workflows/vercel-sdk-evidence.yml
+      - experiments/vercel-ai-sdk-evidence/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Create disposable manifest and install exactly ai@7.0.141
+        shell: bash
+        run: |
+          printf '{"private":true,"type":"module","dependencies":{"ai":"7.0.141","@ai-sdk/openai-compatible":"3.0.66"}}\n' > package.json
+          npm install --package-lock=true --ignore-scripts --no-audit --no-fund
+          npm ls ai @ai-sdk/openai-compatible --depth=0
+          node --version
+          npm --version
+          sha256sum package-lock.json | tee experiments/vercel-ai-sdk-evidence/dependency-lock-sha256.txt
+
+      - name: Execute deterministic mock-provider probes
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test experiments/vercel-ai-sdk-evidence/*.test.mjs 2>&1 | tee experiments/vercel-ai-sdk-evidence/probe-output.log
+
+      - name: Archive exact dependency resolution and observed test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vercel-sdk-evidence-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            package-lock.json
+            experiments/vercel-ai-sdk-evidence/dependency-lock-sha256.txt
+            experiments/vercel-ai-sdk-evidence/probe-output.log
