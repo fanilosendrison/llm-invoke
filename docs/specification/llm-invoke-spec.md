@@ -18,7 +18,9 @@ or deployment model.
 
 This section is normative. It is the primary expression of the current
 `llm-invoke` product contract and is ratified by
-[ADR-001](../adr/adr-001-make-product-intent-govern-invocation-semantics.md).
+[ADR-001](../adr/adr-001-make-product-intent-govern-invocation-semantics.md),
+then extended by
+[ADR-003](../adr/adr-003-agent-first-invocation-and-credential-authority.md).
 Lower-level requirements, architecture, tests, and implementation must be
 derived in this order:
 
@@ -43,6 +45,17 @@ amended.
 ### 0.1 Product definition: contract-first programmatic LLM invocation
 
 `llm-invoke` is a **contract-first runtime for programmatic LLM invocation**.
+
+`llm-invoke` prioritizes adoption by software-building agents. An agent
+constructing or modifying a program that requires LLM calls should be able to
+integrate a trustworthy invocation primitive without rebuilding provider
+authentication, execution-integrity checks, retry safety, termination
+interpretation, or outcome classification.
+
+This agent-first adoption objective concerns the software construction
+experience. It does not make `llm-invoke` an agent, a coding harness, or a
+workflow orchestrator. The same invocation semantics remain available to
+non-agent callers.
 
 It exists for software, workflows, pipelines, and autonomous systems that need
 to invoke an LLM and reason precisely about this question:
@@ -120,6 +133,10 @@ model identity / permitted model set
 provider identity / permitted provider set
 required capabilities
 required parameter semantics
+requested reasoning effort
+requested thinking mode / thinking budget
+evidence of reasoning-configuration acceptance
+credential/account identity when explicitly contractually required
 fallback permissions
 termination semantics
 output structure
@@ -376,6 +393,14 @@ A proposed architecture or implementation is not product-conformant if it:
   errors to determine whether the contract was satisfied;
 - requires the caller to discover an undeclared fallback after receiving
   success;
+- silently modifies a requested provider, model, or reasoning setting;
+- presents a merely submitted reasoning setting as proof of unobservable
+  internal cognitive activity;
+- arbitrarily chooses among ambiguous credential profiles;
+- exposes secrets in errors, traces, or results;
+- makes a particular secret vault mandatory for the universal product;
+- requires callers to reconstruct the guarantees needed for invocation
+  integrity themselves;
 - conflates verified invocation execution with semantic truth or quality; or
 - makes Turnlock or any other consumer the semantic authority for
   `llm-invoke`.
@@ -390,7 +415,9 @@ the meaning of `VerifiedSuccess`.
 A workflow needs one bounded LLM inference.
 
 It requires:
-  - exact model X;
+  - exact execution provider P;
+  - exact requested model X;
+  - requested reasoning configuration R;
   - capability Y to actually be supported;
   - a known acceptable termination;
   - complete output matching schema Z;
@@ -407,7 +434,9 @@ During execution:
   - execution may become ambiguous after transmission.
 
 The workflow must never receive ordinary success unless llm-invoke can
-establish the conditions required by the contract.
+establish the conditions required by the contract. Reasoning configuration R
+must be established at the observability level declared by the contract;
+internal model reasoning is not presumed to be directly observable.
 
 Otherwise it receives the relevant explicit non-success outcome.
 ```
@@ -416,11 +445,151 @@ A design is not conformant if it requires the caller to inspect raw provider
 responses, understand provider-specific errors, trust an undeclared fallback,
 or treat absence of evidence as success.
 
+### 0.11 Agent-first invocation adoption
+
+`llm-invoke` prioritizes an invocation interface that software-building agents
+can adopt easily. The common case must not require a caller to design a detailed
+`InvocationContract` object. Conditions explicitly supplied through the
+invocation interface participate directly in the applicable contract, while
+advanced requirements remain separately expressible. The caller retains
+authority over its acceptance conditions.
+
+The minimum conceptual surface for the standard case is:
+
+```text
+provider
+model
+reasoning, when requested
+prompt or messages
+```
+
+`provider`, `model`, and the input are the conceptual fields of the standard
+case. `reasoning` may be omitted when no specific reasoning control is required.
+Its omission must never be represented as verification of a particular effort
+level. The interface must also be able to expose an optional credential profile
+when more than one authentication identity exists.
+
+The product must return an explicit, mechanically interpretable outcome.
+Implicit behavior must not weaken declared guarantees or the caller's
+acceptability conditions.
+
+These fields are an accepted product-interface direction. They do not yet
+define types, signatures, serialized schemas, a package, or an implementation.
+The following example is illustrative and not implemented:
+
+```typescript
+const result = await invoke({
+  provider: "openai",
+  model: "gpt-5",
+  reasoning: { effort: "high" },
+  prompt: "Analyse ce problème...",
+});
+```
+
+The example does not assert actual support for the provider, model, or effort
+level by any backend version.
+
+### 0.12 Provider, model and reasoning authority
+
+#### Provider
+
+An explicitly specified execution service is a contractual condition. The
+requested provider, the model publisher, and the technical backend are distinct
+identities. For example, using an Anthropic model through AWS Bedrock must not
+be represented as a direct invocation of the Anthropic service.
+
+#### Model
+
+A requested model must not be silently replaced. The requested identifier, the
+model actually resolved, and the available evidence of effective model identity
+must remain distinguishable. Substitution, or resolution that is not
+sufficiently established, cannot produce `VerifiedSuccess` when the contract
+requires exact identity. Aliases and non-immutable identifiers must not be
+implicitly treated as exact immutable identities.
+
+#### Reasoning
+
+Effort and thinking controls differ between providers and models. No universal
+equivalence is presumed among `low`, `medium`, `high`, thinking enabled or
+disabled, token budgets, or other controls. Translation is admissible only when
+it preserves the explicitly requested semantics. A known incompatibility must
+be reported rather than silently corrected. If evidence required to satisfy the
+contract is absent, `VerifiedSuccess` is prohibited.
+
+These states are distinct:
+
+```text
+requested configuration
+configuration submitted
+configuration accepted or established
+internal reasoning actually performed
+```
+
+`llm-invoke` claims no universal ability to observe internal model reasoning.
+The precise classification of situations with multiple simultaneous
+non-success causes remains open as stated in Section 1.
+
+### 0.13 Credential resolution and secret authority
+
+`llm-invoke` must provide an integration boundary for credential resolution and
+use. The caller must not have to implement secret retrieval systematically for
+every invocation. Credentials may originate from different external mechanisms;
+no particular secret provider is mandatory. Environment variables may be
+supported but are not a mandatory dependency.
+
+Permanent secret storage, secret creation, revocation, and rotation are outside
+the product's intrinsic scope. A credential profile may be selected explicitly
+or resolved through unambiguous configuration. When several profiles exist and
+there is neither an explicit selection nor an authorized default rule, no
+arbitrary selection is permitted. Missing, inaccessible, or ambiguous
+credentials must not trigger a silent authentication-identity change.
+
+Secret values must not appear in public outcomes, errors, logs, traces, or
+persisted evidence. Retrieval must remain compatible with the security
+constraints of the execution environment. A credential reference alone never
+authorizes execution of an arbitrary command. An authorized execution mechanism
+may use the secret, but the secret must not be returned to the caller as
+invocation data.
+
+The following responsibilities are distinct:
+
+```text
+Credential selection / authentication mechanism
+```
+
+and:
+
+```text
+Caller-owned invocation acceptance conditions
+```
+
+An account or profile identity becomes a contractual requirement only when the
+caller declares it as such. This section prescribes no class, interface,
+protocol, or configuration format.
+
+### 0.14 Backend composition and guarantee preservation
+
+`llm-invoke` remains backend-neutral. Vercel AI SDK is a preferred realization
+candidate, but it is not yet definitively selected. Existing mechanisms should
+be reused when they correctly satisfy the requirements, without making any
+backend mechanism an authority over invocation success.
+
+Guarantees historically provided by `llm-runtime` must be inventoried and
+compared with `llm-invoke` requirements. Historically useful protections do not
+become normative invariants merely through prior existence. No relevant
+guarantee loss may be accepted silently to ease backend adoption. Any parity
+claim requires conformance evidence and appropriate tests.
+
+This update claims neither Vercel AI SDK conformance nor parity with
+`llm-runtime` and does not duplicate the separate historical audit.
+
 ## 1. Current specification scope
 
-This initial specification establishes Product Intent, user-visible success
-semantics, minimum outcome distinctions, and authority boundaries. It does not
-yet claim a complete invariant set or select implementation mechanisms.
+This specification establishes Product Intent, including agent-first adoption,
+the contractual authority of explicitly supplied invocation parameters,
+user-visible success semantics, minimum outcome distinctions, the credential
+resolution boundary, and other authority boundaries. It does not yet claim a
+complete invariant set or select implementation mechanisms.
 
 Future work may derive stable system invariants, constraints, and architecture
 only when they are necessary consequences of Section 0 or are introduced by an
@@ -428,19 +597,22 @@ explicit accepted product decision.
 
 The following remain intentionally open:
 
-- public API shape and contract representation;
-- implementation language and package boundaries;
-- mandatory or optional backend adapters;
-- provider support;
+- exact public API syntax and types;
+- serialized contract representation;
+- implementation language;
+- definitively selected backend;
+- package architecture;
+- actual adapters and provider support;
 - evidence acquisition and normalization mechanisms;
 - outcome representation and serialization;
 - the treatment of simultaneously applicable non-success facts;
 - retry, fallback, routing, caching, throttling, and circuit-breaker mechanisms;
-- persistence and recovery mechanisms;
+- event handling, streaming, persistence, and recovery mechanisms;
 - observability and telemetry mechanisms;
 - network protocols;
 - deployment models; and
-- conformance and verification tooling.
+- conformance tests and tooling.
 
-Historical `llm-runtime` mechanisms, if any, are not promoted to invariants by
-existence. Any future adoption must be justified from this Product Intent.
+None of these open elements is represented as implemented. Historical
+`llm-runtime` mechanisms, if any, are not promoted to invariants by existence.
+Any future adoption must be justified from this Product Intent.
