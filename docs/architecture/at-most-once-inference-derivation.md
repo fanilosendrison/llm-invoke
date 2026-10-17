@@ -17,8 +17,13 @@ mechanism is selected here.
 `@ai-sdk/openai-compatible@3.0.66`, controlled localhost provider, CI
 https://github.com/fanilosendrison/llm-invoke/actions/runs/39073654672
 (`HTTP-004`): first server operation completed then lost reply; SDK retry
-made 2 HTTP requests and returned normal result. This simulates the risk; it
-does not demonstrate actual inference duplication at a real provider.
+made 2 HTTP requests and returned normal result. A later local proxy probe
+`HTTP-006`, CI
+https://github.com/fanilosendrison/llm-invoke/actions/runs/39075284045,
+observed one SDK-to-proxy request and two simulated proxy-to-provider
+requests even with SDK `maxRetries: 0`. Both experiments demonstrate
+the transport hazard; neither establishes that a real provider or
+Vercel AI Gateway performed duplicate inference.
 
 ## Product-level invariant and boundaries
 
