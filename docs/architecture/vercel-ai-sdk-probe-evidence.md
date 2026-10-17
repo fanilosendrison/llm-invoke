@@ -9,6 +9,12 @@ name: "Exact llm-runtime baseline and pinned Vercel SDK evidence"
 
 # Baseline and execution-backend evidence — 2026-10-17
 
+> **2026-10-18 correction:** The product owner has ruled out double
+> actual inference for the same logical invocation universally. The
+> previous caller-selectable duplicate-tolerance interpretation is
+> superseded by [ADR-003 / PR #2](https://github.com/fanilosendrison/llm-invoke/pull/2).
+> Existing observations and test results are unchanged.
+
 **Status: MEASURED / PARTIAL CONFORMANCE COVERAGE.** This is a non-normative evidence report, NOT an accepted product or architectural decision and NOT a parity certification.
 
 ## Source identities and provenance
@@ -65,7 +71,7 @@ Sources: `experiments/vercel-ai-sdk-evidence/probe.test.mjs`, `transport.test.mj
 | HTTP-001 | Requested model `requested-model`; local HTTP provider reported `other-executed-model`; SDK returned normally and exposed different model in `response.modelId` | Model mismatch known, but SDK does not enforce caller contract |
 | HTTP-002 | Local provider returned `finish_reason: length`; SDK returned normally and reported `length` | Same issue reproduced through actual HTTP/adapter path |
 | HTTP-003 | Fake provider marked its first operation complete then destroyed socket; `maxRetries: 0` => one HTTP request and error | Error does **not** establish whether upstream work occurred |
-| HTTP-004 | Same first-operation-completed-then-socket-reset; `maxRetries: 1` => **two HTTP requests**, second completed, normal result returned | Direct evidence of automatic replay despite first completed upstream operation; contract forbidding duplicate-execution risk cannot simply delegate retries |
+| HTTP-004 | Same first-operation-completed-then-socket-reset; `maxRetries: 1` => **two HTTP requests**, second completed, normal result returned | Direct evidence of automatic replay despite first completed upstream operation; universal at-most-once rule forbids relying on such a retry without execution-boundary deduplication |
 | HTTP-005 | Two parallel requests returned correctly attributed `alpha` and `beta` | Basic isolation shown in this simple case only |
 
 **Interpretation boundary:** a simulated server-side completion is not evidence of a real model completing or billing; it proves a transport sequence where an SDK client cannot distinguish completed upstream work from a failed operation based on its error alone. Each experiment is bounded to the pinned versions and local conditions. No live provider access, billing, gateway reroute, full streaming, headers-rate-limit or credential use was tested.
@@ -89,7 +95,7 @@ Sources: `experiments/vercel-ai-sdk-evidence/probe.test.mjs`, `transport.test.mj
 
 1. A contract evaluation must not equate SDK return with `VerifiedSuccess` (length, unsupported setting, unknown termination, and known model mismatch may return normally).
 2. Separate **model requested**, **model declared by SDK**, and **model observed from provider evidence**. When exact actual model is required, an SDK-provided default model ID alone is insufficient evidence.
-3. Explicit retry authorization and duplicate-execution tolerance are contract conditions. An observed retry after completed upstream work under a lost reply is an unacceptable risk for some contracts. The architecture must govern attempt initiation at all layers; setting `maxRetries: 0` may be necessary but does not prove that upstream gateways do not retry.
+3. **Duplicate actual inference is never acceptable for one logical invocation.** A caller cannot waive that prohibition. A retry after possibly completed upstream work is forbidden without sufficient evidence of no prior inference or effective inference-boundary deduplication. The architecture must govern the full execution path; setting `maxRetries: 0` may be necessary but does not prove that upstream gateways do not retry.
 4. Lost-response failure is not evidence that the upstream provider did not execute; do not turn materially unknown execution into a certain `ExecutionFailure`.
 5. A wrapper can evaluate observed outcomes, but cannot manufacture proof missing at the chosen backend boundary. Capability/evidence insufficiency must fail closed.
 
