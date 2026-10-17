@@ -9,6 +9,14 @@ name: "Historical llm-runtime guarantee preservation assessment against Vercel A
 
 # llm-runtime guarantee preservation — Vercel AI SDK backend candidate
 
+> **2026-10-18 product-owner correction:** A duplicate *actual model
+> inference* for one logical invocation is **never acceptable**, regardless
+> of caller preferences. The normative amendment is proposed in
+> [ADR-003 / PR #2](https://github.com/fanilosendrison/llm-invoke/pull/2).
+> Historical retries are evidence of old behavior, not permission to duplicate.
+> A transport retry after ambiguous prior execution is forbidden unless
+> effective inference-boundary deduplication is established.
+
 **Status:** investigative, non-normative, NOT an accepted architecture decision.  
 **Assessment date:** 2026-10-17.  
 **Source revisions:** `llm-runtime` `29e9a2bb5e2dfdc6cd7f29933ff96536f9226f5d`; `llm-invoke` `08c736ff3b243895b17cfa148458edf01eaed338`.  
@@ -45,7 +53,7 @@ name: "Historical llm-runtime guarantee preservation assessment against Vercel A
 | G17 | No silent fallback or substitution in prior runtime | NIB-S I-3; execute-call | COMPLEMENT | Explicit caller authorization + provenance evaluation | Forbidden / allowed backend fallback, alias, silent gateway reroute |
 | G18 | Strictly bounded single semantic operation; no tool/agent loop implicit | Historical multi-message completion API; Invoke TL-COMP-001 | EXPERIMENT / COMPLEMENT | Invoke/Turnlock compatibility boundary | Disable auto tool loop; distinguish physical attempts from semantic operation |
 | G19 | Never claim known execution failure when provider may have executed after request transmission | **NOT established in old runtime**: timeout is retryable and thrown as `TimeoutError` | GAP | **New normative llm-invoke outcome semantics** | Inject drop before send / during send / after accepted / after inference; demonstrate `IndeterminateExecution` where required |
-| G20 | Contract-owned required model/provider/capabilities/parameters/termination/completeness/deadline/retry/duplicate tolerance/provenance | **NOT established as single contract in old runtime** | GAP | **New normative llm-invoke core** | Contract-by-contract conformance vectors; missing evidence never silently upgraded to success |
+| G20 | Contract-owned required model/provider/capabilities/parameters/termination/completeness/deadline/retry/at-most-once execution/provenance | **NOT established as single contract in old runtime** | GAP | **New normative llm-invoke core** | Contract-by-contract conformance vectors; missing evidence never silently upgraded to success |
 
 ## Critical incompatibilities / no-regression hazards
 
@@ -77,7 +85,7 @@ For any invocation contract `C` and backend `B`:
 1. Pin exact Vercel AI SDK packages and provider adapters, not floating documentation. Capture installed export/types/source version and test harness.
 2. Run an evidence-availability matrix for each target provider: effective model, provider identity, termination/raw termination, provider parameters/warnings, usage, response IDs, headers, provider/gateway fallback behavior.
 3. Build a controllable transport/proxy fault injector to distinguish pre-transmission, post-transmission, provider-completed-but-lost, timeout, abort, connection reset and partial body/stream. Confirm which phases are observable, which are inherently unknown.
-4. Prove one retry authority and contract-aware duplicate-execution policy, including upper bounds on physical attempts and no silent fallback.
+4. Prove **universal at-most-once actual LLM inference** (not caller-configurable duplicate tolerance), safe admission of each transport attempt, and no uncontrolled hidden SDK/gateway/provider replay.
 5. Derive outcome precedence/composition for simultaneous violation, operational failure, and uncertainty; this is **open** in current Invoke spec (§1). Do not invent precedence in code.
 
 **P1 / historical robustness parity**
