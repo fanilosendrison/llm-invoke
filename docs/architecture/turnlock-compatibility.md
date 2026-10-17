@@ -389,9 +389,10 @@ projection must not be read as introducing them:
 - workflow orchestration;
 - semantic-output evaluation.
 
-Turnlock explicitly treats a one-shot raw LLM call as a semantic operation
-that is not necessarily a single provider call, and its
-execution-inspectability invariant introduces no universal crash-durable
-post-mortem, replay, or permanent-retention guarantee. Adding any capability
-from this list would exceed both authorities; it would require an explicit
-decision, never an inference from this projection.
+Turnlock treats a one-shot raw LLM call as a semantic operation that need
+not correspond to a single *transport exchange*. Under llm-invoke §0.6.1
+and ADR-003, it may never cause more than one actual inference for that
+logical invocation. Turnlock's execution-inspectability invariant introduces
+no universal crash-durable post-mortem, replay, or permanent-retention
+guarantee. Adding any capability from the non-obligations list would require
+an explicit decision, never an inference from this projection.
