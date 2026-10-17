@@ -101,14 +101,22 @@ These strings are references to resolution operations, not authorization to
 execute arbitrary instructions. A future personal adapter must enforce all of
 the following design requirements:
 
-- strictly validate the recognized Doppler command forms;
+- strictly validate the recognized Doppler command forms and reject any
+  reference that does not exactly match an allowed form;
 - execute an allowed operation with structured arguments and no shell
   interpretation;
 - reject shell substitutions, pipelines, redirections, and compound commands;
-- fail explicitly when a reference matches no allowed form;
-- prevent the secret from appearing in stdout, stderr, exceptions, events, or
-  traces; and
-- never fall back silently to another identity after a retrieval error.
+- capture the Doppler subprocess stdout directly as sensitive secret data,
+  without forwarding it to a terminal or the calling program's stdout;
+- pass the captured value only to the authorized authentication mechanism;
+- prevent the secret from appearing in logs, diagnostics, exceptions, events,
+  traces, public results, or persisted evidence;
+- treat subprocess stderr as potentially sensitive and never forward it without
+  safe filtering;
+- retain secret material no longer than authentication requires, within the
+  capabilities of the future runtime; and
+- never substitute another credential or provider silently after a retrieval
+  error.
 
 These are design requirements, not instructions to implement or execute a
 Doppler adapter in this update. A credential reference never authorizes general
