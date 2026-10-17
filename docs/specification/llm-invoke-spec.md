@@ -20,7 +20,8 @@ This section is normative. It is the primary expression of the current
 `llm-invoke` product contract and is ratified by
 [ADR-001](../adr/adr-001-make-product-intent-govern-invocation-semantics.md),
 then extended by
-[ADR-003](../adr/adr-003-agent-first-invocation-and-credential-authority.md).
+[ADR-003](../adr/adr-003-at-most-once-llm-inference.md) and
+[ADR-004](../adr/adr-004-agent-first-invocation-and-credential-authority.md).
 Lower-level requirements, architecture, tests, and implementation must be
 derived in this order:
 
@@ -119,6 +120,9 @@ always succeed. It means that a degraded, ambiguous, substituted, or
 insufficiently established execution cannot be silently transformed into
 success.
 
+Each logical invocation is additionally bound by a universal, non-waivable
+**at-most-once actual LLM inference** constraint (§0.6.1).
+
 ### 0.3 Caller authority and the InvocationContract concept
 
 The caller owns the authority to define the conditions under which an invocation
@@ -136,21 +140,22 @@ required parameter semantics
 requested reasoning effort
 requested thinking mode / thinking budget
 evidence of reasoning-configuration acceptance
-credential/account identity when explicitly contractually required
+credential/account identity when explicitly required
 fallback permissions
 termination semantics
 output structure
 output completeness / truncation policy
 deadline
-retry permissions
-duplicate-execution tolerance
+retry permissions (within the at-most-once constraint)
+logical invocation identity / replay continuity
 execution-certainty requirements
 response-integrity requirements
 metadata / provenance requirements
 ```
 
 This list identifies semantic concerns, not a mandatory closed field set or an
-implementation structure.
+implementation structure. A caller cannot authorize a duplicate LLM inference
+for the same logical invocation. That safety constraint is not optional.
 
 The governing evidence rule is:
 
@@ -194,6 +199,8 @@ the generated code is correct
 ```
 
 Ordinary invocation success is reserved for `VerifiedSuccess`.
+The universal at-most-once property must also be sufficiently established;
+an SDK return is not itself proof of that property.
 
 #### 0.4.2 ContractViolation
 
@@ -211,6 +218,7 @@ unknown or forbidden termination
 detected truncation
 required output structure invalid
 provider protocol incompatible with the contract
+known duplicate actual LLM inference for the same logical invocation
 ```
 
 The examples are illustrative rather than a closed taxonomy.
@@ -240,7 +248,8 @@ connection or response lost
 
 This uncertainty must not be arbitrarily reduced to a simple timeout or a
 certain execution failure when the distinction may change the caller's correct
-next action.
+next action. In particular, an unknown earlier execution must never be
+replayed merely to obtain a response.
 
 ### 0.5 Backend neutrality and evidence authority
 
@@ -289,7 +298,10 @@ or an explicit non-success outcome
 When an existing maintained component provides a required capability correctly,
 `llm-invoke` should compose it rather than reimplementing it without reason.
 Composition does not transfer authority over invocation success to that
-component.
+component. A backend whose path may duplicate actual inference without a
+sufficiently established prevention mechanism is not admissible. If this
+cannot be established before dispatch, an optimistic attempt followed by
+failure is not a substitute for preventing duplication.
 
 ### 0.6 Reliability mechanisms are subordinate
 
@@ -313,15 +325,55 @@ The result could be `VerifiedSuccess` only if the contract explicitly permitted
 B or an equivalence class that contains B and every other required condition was
 established.
 
-Retry is governed by the same principle. If a prior execution has become
-indeterminate and the contract forbids duplicate-execution risk, an automatic
-retry may violate the contract.
+Retry is governed by the same principle. Caller permissions never authorize
+another actual inference for the same logical invocation.
+
+### 0.6.1 Universal at-most-once actual LLM execution
+
+An individual **logical invocation** is one caller-intended inference
+operation. For that invocation, zero or one actual LLM inference executions
+may occur, **never two or more**. This property is mandatory for the product
+and cannot be waived through an `InvocationContract`, availability policy,
+retry policy, or backend configuration.
+
+Invocation identity survives network disconnects, timeouts, retry attempts,
+process restarts, orchestration re-entry, gateway routing, and recovery. A
+technical replay is not a new logical invocation merely because a new HTTP
+request, correlation identifier, process, or connection is created. Genuinely
+separate caller-intended operations may use identical prompts and are distinct.
+
+A subsequent transport attempt is admissible only if there is sufficient
+evidence that earlier attempts caused **no actual LLM inference**, or if an
+established inference-boundary deduplication/idempotency mechanism guarantees
+that a new transport request cannot cause a second actual inference. Merely
+observing an error, timeout, connection reset, HTTP status, abort, or missing
+response does not establish that the earlier inference did not happen.
+
+If an earlier execution is possible and no adequate non-duplication mechanism
+is available, no further inference attempt is admissible. Where the execution
+state cannot be established, the outcome must preserve
+`IndeterminateExecution`, rather than trying the invocation again.
+
+The rule spans SDKs, gateways, proxies, provider-side behavior, retries,
+failover and recovery. An execution path that may replay inference invisibly
+and cannot sufficiently exclude duplication must not be admitted as a
+conformant backend. Disabling a client retry switch is not sufficient evidence
+that the full execution path is safe.
+
+**At-most-once is not exactly-once.** This product does not promise that an
+invocation will execute, that a lost response can be recovered, or that an
+abort reverses provider-side execution. It must not claim control of opaque
+provider behavior that it cannot establish. No particular identity, storage,
+idempotency, transport or deployment mechanism is chosen by this requirement.
 
 Therefore:
 
 ```text
 availability
 != authority to weaken invocation meaning
+
+unknown previous execution
+!= authority to execute inference again
 ```
 
 ### 0.7 Boundary with Turnlock
@@ -386,6 +438,12 @@ A proposed architecture or implementation is not product-conformant if it:
 - treats transport success, SDK completion, content presence, or fallback
   completion as sufficient proof of invocation success;
 - treats missing evidence as permission to assume compliance;
+- admits a second actual LLM inference for the same logical invocation or
+  permits a caller to waive this prohibition;
+- retries a possibly executed inference without sufficient proof of previous
+  non-execution or established inference-boundary deduplication;
+- treats disabling SDK retries as sufficient proof that an opaque gateway or
+  provider cannot perform hidden replay;
 - lets a backend, provider, router, gateway, or reliability mechanism redefine
   the caller's contract;
 - collapses materially relevant execution uncertainty into a known failure;
@@ -394,10 +452,12 @@ A proposed architecture or implementation is not product-conformant if it:
 - requires the caller to discover an undeclared fallback after receiving
   success;
 - silently modifies a requested provider, model, or reasoning setting;
+- translates a requested reasoning setting without establishing semantic
+  preservation;
 - presents a merely submitted reasoning setting as proof of unobservable
   internal cognitive activity;
 - arbitrarily chooses among ambiguous credential profiles;
-- exposes secrets in errors, traces, or results;
+- exposes secrets in errors, logs, traces, results, or persisted evidence;
 - makes a particular secret vault mandatory for the universal product;
 - requires callers to reconstruct the guarantees needed for invocation
   integrity themselves;
@@ -416,12 +476,12 @@ A workflow needs one bounded LLM inference.
 
 It requires:
   - exact execution provider P;
-  - exact requested model X;
+  - exact model X;
   - requested reasoning configuration R;
   - capability Y to actually be supported;
   - a known acceptable termination;
   - complete output matching schema Z;
-  - no retry if prior execution becomes indeterminate.
+  - universal at-most-once actual inference across retry and recovery.
 
 Execution occurs through an arbitrary compatible backend.
 
@@ -434,9 +494,12 @@ During execution:
   - execution may become ambiguous after transmission.
 
 The workflow must never receive ordinary success unless llm-invoke can
-establish the conditions required by the contract. Reasoning configuration R
-must be established at the observability level declared by the contract;
-internal model reasoning is not presumed to be directly observable.
+establish the conditions required by the contract and the universal
+at-most-once execution constraint. Reasoning configuration R must be established
+at the observability level declared by the contract; internal model reasoning
+is not presumed to be directly observable. Ambiguous execution never authorizes
+another inference without sufficient evidence that the attempt is safe under
+§0.6.1.
 
 Otherwise it receives the relevant explicit non-success outcome.
 ```
@@ -452,7 +515,8 @@ can adopt easily. The common case must not require a caller to design a detailed
 `InvocationContract` object. Conditions explicitly supplied through the
 invocation interface participate directly in the applicable contract, while
 advanced requirements remain separately expressible. The caller retains
-authority over its acceptance conditions.
+authority over its acceptance conditions but cannot waive universal at-most-once
+actual inference.
 
 The minimum conceptual surface for the standard case is:
 
@@ -470,8 +534,8 @@ level. The interface must also be able to expose an optional credential profile
 when more than one authentication identity exists.
 
 The product must return an explicit, mechanically interpretable outcome.
-Implicit behavior must not weaken declared guarantees or the caller's
-acceptability conditions.
+Implicit behavior must not weaken declared guarantees, the caller's
+acceptability conditions, or §0.6.1.
 
 These fields are an accepted product-interface direction. They do not yet
 define types, signatures, serialized schemas, a package, or an implementation.
@@ -571,25 +635,31 @@ protocol, or configuration format.
 
 `llm-invoke` remains backend-neutral. Vercel AI SDK is a preferred realization
 candidate, but it is not yet definitively selected. Existing mechanisms should
-be reused when they correctly satisfy the requirements, without making any
-backend mechanism an authority over invocation success.
+be reused when they correctly satisfy the current Product Intent, without
+making any backend mechanism an authority over invocation success.
 
 Guarantees historically provided by `llm-runtime` must be inventoried and
-compared with `llm-invoke` requirements. Historically useful protections do not
-become normative invariants merely through prior existence. No relevant
-guarantee loss may be accepted silently to ease backend adoption. Any parity
-claim requires conformance evidence and appropriate tests.
+compared with current `llm-invoke` requirements. Historically useful protections
+do not become normative invariants merely through prior existence. They are
+preservable only when they conform to the current Product Intent, including
+universal at-most-once actual inference. A historical retry strategy that may
+cause a second actual inference for one logical invocation is non-conformant and
+must not be preserved as a guarantee. Excluding such a strategy is required
+conformance, not an accidental regression.
 
+No relevant conformant guarantee loss may be accepted silently to ease backend
+adoption. Any parity claim requires conformance evidence and appropriate tests.
 This update claims neither Vercel AI SDK conformance nor parity with
 `llm-runtime` and does not duplicate the separate historical audit.
 
 ## 1. Current specification scope
 
-This specification establishes Product Intent, including agent-first adoption,
-the contractual authority of explicitly supplied invocation parameters,
-user-visible success semantics, minimum outcome distinctions, the credential
-resolution boundary, and other authority boundaries. It does not yet claim a
-complete invariant set or select implementation mechanisms.
+This specification establishes Product Intent, including universal at-most-once
+actual inference, agent-first adoption, the contractual authority of explicitly
+supplied invocation parameters, user-visible success semantics, minimum outcome
+distinctions, the credential-resolution boundary, and other authority
+boundaries. It does not yet claim a complete invariant set or select
+implementation mechanisms.
 
 Future work may derive stable system invariants, constraints, and architecture
 only when they are necessary consequences of Section 0 or are introduced by an
@@ -600,13 +670,15 @@ The following remain intentionally open:
 - exact public API syntax and types;
 - serialized contract representation;
 - implementation language;
-- definitively selected backend;
+- definitively selected provider and backend;
 - package architecture;
-- actual adapters and provider support;
-- evidence acquisition and normalization mechanisms;
+- actual credential and backend adapters;
+- inference-boundary evidence acquisition and normalization mechanisms;
+- logical invocation identity continuity across recovery;
 - outcome representation and serialization;
 - the treatment of simultaneously applicable non-success facts;
-- retry, fallback, routing, caching, throttling, and circuit-breaker mechanisms;
+- retry, fallback, routing, caching, throttling, and circuit-breaker mechanisms
+  compatible with at-most-once actual inference;
 - event handling, streaming, persistence, and recovery mechanisms;
 - observability and telemetry mechanisms;
 - network protocols;
@@ -615,4 +687,5 @@ The following remain intentionally open:
 
 None of these open elements is represented as implemented. Historical
 `llm-runtime` mechanisms, if any, are not promoted to invariants by existence.
-Any future adoption must be justified from this Product Intent.
+Any future adoption must be justified from this Product Intent and must conform
+to universal at-most-once actual inference.
