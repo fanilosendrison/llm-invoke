@@ -25,7 +25,7 @@ async function withProvider(onRequest, run) {
   const baseURL = 'http://127.0.0.1:' + port + '/v1';
   const provider = createOpenAICompatible({ baseURL, name: 'local-probe', apiKey: 'fake' });
   try {
-    return await run(provider);
+    return await run(provider, baseURL);
   } finally {
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
@@ -149,5 +149,60 @@ test('HTTP-005: independent concurrent calls remain attributable', async () => {
     assert.equal(a.text,'alpha');
     assert.equal(b.text,'beta');
     evidence('HTTP-005', { concurrentCalls: 2, observed, results: [a.text,b.text] });
+  });
+});
+
+
+test('HTTP-006: simulated hidden gateway retry defeats SDK maxRetries=0', async () => {
+  let sdkToGateway = 0;
+  let gatewayToProvider = 0;
+  let firstInferenceCompleted = false;
+
+  // This local upstream simulates inference that completes before its reply
+  // is lost. It is NOT a real LLM or the actual Vercel AI Gateway.
+  await withProvider(async (req, res) => {
+    gatewayToProvider += 1;
+    if (gatewayToProvider === 1) {
+      firstInferenceCompleted = true;
+      req.socket.destroy();
+      return;
+    }
+    send(res, { text: 'gateway retried upstream' });
+  }, async (_unusedProvider, upstreamBaseUrl) => {
+    await withProvider(async (_req, res, body) => {
+      sdkToGateway += 1;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const upstreamResponse = await fetch(
+            upstreamBaseUrl + '/chat/completions',
+            {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body,
+            },
+          );
+          const responseText = await upstreamResponse.text();
+          res.writeHead(upstreamResponse.status, { 'content-type': 'application/json' });
+          res.end(responseText);
+          return;
+        } catch (error) {
+          if (attempt === 1) throw error;
+        }
+      }
+    }, async gatewayProvider => {
+      const result = await call(gatewayProvider, { maxRetries: 0 });
+      assert.equal(result.text, 'gateway retried upstream');
+      assert.equal(sdkToGateway, 1);
+      assert.equal(gatewayToProvider, 2);
+      assert.equal(firstInferenceCompleted, true);
+      evidence('HTTP-006', {
+        simulatedGateway: true,
+        sdkMaxRetries: 0,
+        sdkToGatewayRequests: sdkToGateway,
+        gatewayToProviderRequests: gatewayToProvider,
+        firstUpstreamWorkCompleted: firstInferenceCompleted,
+        duplicateUpstreamInferenceSimulated: gatewayToProvider > 1,
+      });
+    });
   });
 });
