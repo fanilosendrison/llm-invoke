@@ -28,8 +28,8 @@ jobs:
       - name: Create disposable manifest and install exactly ai@7.0.141
         shell: bash
         run: |
-          printf '{"private":true,"type":"module"}\n' > package.json
-          npm install --no-save --package-lock=true --ignore-scripts --no-audit --no-fund ai@7.0.141
+          printf '{"private":true,"type":"module","dependencies":{"ai":"7.0.141"}}\n' > package.json
+          npm install --package-lock=true --ignore-scripts --no-audit --no-fund
           npm ls ai --depth=0
           node --version
           npm --version
