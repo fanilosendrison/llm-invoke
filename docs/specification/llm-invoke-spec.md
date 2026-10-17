@@ -106,6 +106,9 @@ always succeed. It means that a degraded, ambiguous, substituted, or
 insufficiently established execution cannot be silently transformed into
 success.
 
+Each logical invocation is additionally bound by a universal, non-waivable
+**at-most-once actual LLM inference** constraint (§0.6.1).
+
 ### 0.3 Caller authority and the InvocationContract concept
 
 The caller owns the authority to define the conditions under which an invocation
@@ -125,15 +128,16 @@ termination semantics
 output structure
 output completeness / truncation policy
 deadline
-retry permissions
-duplicate-execution tolerance
+retry permissions (within the at-most-once constraint)
+logical invocation identity / replay continuity
 execution-certainty requirements
 response-integrity requirements
 metadata / provenance requirements
 ```
 
 This list identifies semantic concerns, not a mandatory closed field set or an
-implementation structure.
+implementation structure. A caller cannot authorize a duplicate LLM inference
+for the same logical invocation. That safety constraint is not optional.
 
 The governing evidence rule is:
 
@@ -177,6 +181,8 @@ the generated code is correct
 ```
 
 Ordinary invocation success is reserved for `VerifiedSuccess`.
+The universal at-most-once property must also be sufficiently established;
+an SDK return is not itself proof of that property.
 
 #### 0.4.2 ContractViolation
 
@@ -194,6 +200,7 @@ unknown or forbidden termination
 detected truncation
 required output structure invalid
 provider protocol incompatible with the contract
+known duplicate actual LLM inference for the same logical invocation
 ```
 
 The examples are illustrative rather than a closed taxonomy.
@@ -223,7 +230,8 @@ connection or response lost
 
 This uncertainty must not be arbitrarily reduced to a simple timeout or a
 certain execution failure when the distinction may change the caller's correct
-next action.
+next action. In particular, an unknown earlier execution must never be
+replayed merely to obtain a response.
 
 ### 0.5 Backend neutrality and evidence authority
 
@@ -272,7 +280,10 @@ or an explicit non-success outcome
 When an existing maintained component provides a required capability correctly,
 `llm-invoke` should compose it rather than reimplementing it without reason.
 Composition does not transfer authority over invocation success to that
-component.
+component. A backend whose path may duplicate actual inference without a
+sufficiently established prevention mechanism is not admissible. If this
+cannot be established before dispatch, an optimistic attempt followed by
+failure is not a substitute for preventing duplication.
 
 ### 0.6 Reliability mechanisms are subordinate
 
@@ -296,15 +307,55 @@ The result could be `VerifiedSuccess` only if the contract explicitly permitted
 B or an equivalence class that contains B and every other required condition was
 established.
 
-Retry is governed by the same principle. If a prior execution has become
-indeterminate and the contract forbids duplicate-execution risk, an automatic
-retry may violate the contract.
+Retry is governed by the same principle. Caller permissions never authorize
+another actual inference for the same logical invocation.
+
+### 0.6.1 Universal at-most-once actual LLM execution
+
+An individual **logical invocation** is one caller-intended inference
+operation. For that invocation, zero or one actual LLM inference executions
+may occur, **never two or more**. This property is mandatory for the product
+and cannot be waived through an `InvocationContract`, availability policy,
+retry policy, or backend configuration.
+
+Invocation identity survives network disconnects, timeouts, retry attempts,
+process restarts, orchestration re-entry, gateway routing, and recovery. A
+technical replay is not a new logical invocation merely because a new HTTP
+request, correlation identifier, process, or connection is created. Genuinely
+separate caller-intended operations may use identical prompts and are distinct.
+
+A subsequent transport attempt is admissible only if there is sufficient
+evidence that earlier attempts caused **no actual LLM inference**, or if an
+established inference-boundary deduplication/idempotency mechanism guarantees
+that a new transport request cannot cause a second actual inference. Merely
+observing an error, timeout, connection reset, HTTP status, abort, or missing
+response does not establish that the earlier inference did not happen.
+
+If an earlier execution is possible and no adequate non-duplication mechanism
+is available, no further inference attempt is admissible. Where the execution
+state cannot be established, the outcome must preserve
+`IndeterminateExecution`, rather than trying the invocation again.
+
+The rule spans SDKs, gateways, proxies, provider-side behavior, retries,
+failover and recovery. An execution path that may replay inference invisibly
+and cannot sufficiently exclude duplication must not be admitted as a
+conformant backend. Disabling a client retry switch is not sufficient evidence
+that the full execution path is safe.
+
+**At-most-once is not exactly-once.** This product does not promise that an
+invocation will execute, that a lost response can be recovered, or that an
+abort reverses provider-side execution. It must not claim control of opaque
+provider behavior that it cannot establish. No particular identity, storage,
+idempotency, transport or deployment mechanism is chosen by this requirement.
 
 Therefore:
 
 ```text
 availability
 != authority to weaken invocation meaning
+
+unknown previous execution
+!= authority to execute inference again
 ```
 
 ### 0.7 Boundary with Turnlock
@@ -369,6 +420,12 @@ A proposed architecture or implementation is not product-conformant if it:
 - treats transport success, SDK completion, content presence, or fallback
   completion as sufficient proof of invocation success;
 - treats missing evidence as permission to assume compliance;
+- admits a second actual LLM inference for the same logical invocation or
+  permits a caller to waive this prohibition;
+- retries a possibly executed inference without sufficient proof of previous
+  non-execution or established inference-boundary deduplication;
+- treats disabling SDK retries as sufficient proof that an opaque gateway or
+  provider cannot perform hidden replay;
 - lets a backend, provider, router, gateway, or reliability mechanism redefine
   the caller's contract;
 - collapses materially relevant execution uncertainty into a known failure;
@@ -394,7 +451,7 @@ It requires:
   - capability Y to actually be supported;
   - a known acceptable termination;
   - complete output matching schema Z;
-  - no retry if prior execution becomes indeterminate.
+  - at-most-once actual inference across retry and recovery, without waiver.
 
 Execution occurs through an arbitrary compatible backend.
 
@@ -407,7 +464,9 @@ During execution:
   - execution may become ambiguous after transmission.
 
 The workflow must never receive ordinary success unless llm-invoke can
-establish the conditions required by the contract.
+establish the conditions required by the contract and the universal
+at-most-once execution constraint. Ambiguous transmission does not authorize
+another inference.
 
 Otherwise it receives the relevant explicit non-success outcome.
 ```
@@ -435,8 +494,9 @@ The following remain intentionally open:
 - evidence acquisition and normalization mechanisms;
 - outcome representation and serialization;
 - the treatment of simultaneously applicable non-success facts;
-- retry, fallback, routing, caching, throttling, and circuit-breaker mechanisms;
-- persistence and recovery mechanisms;
+- retry, fallback, routing, caching, throttling, and circuit-breaker mechanisms
+  compatible with at-most-once actual inference;
+- persistence, logical-invocation continuity, and recovery mechanisms;
 - observability and telemetry mechanisms;
 - network protocols;
 - deployment models; and

@@ -123,10 +123,11 @@ Such an operation must not introduce an autonomous observe/reason/act loop,
 a persistent cognitive lineage, a hidden autonomous agent, or global
 orchestration authority.
 
-`one semantic invocation` does not mean exactly one HTTP request, exactly
-one provider attempt, that streaming is prohibited, or that
-contract-compatible internal retries are prohibited. The distinction must
-be preserved.
+`one semantic invocation` does not imply one HTTP transport exchange or
+prohibit streaming. However, universal at-most-once inference (§0.6.1,
+ADR-003) rules out a second actual LLM inference, including during retries.
+A transport retry can be safe only after proven non-execution or effective
+inference-boundary deduplication.
 
 **Existing `llm-invoke` semantic support.** The Product Intent defines
 bounded programmatic invocation with caller-owned contracts (§0.1, §0.3),
@@ -219,8 +220,8 @@ parameters
 fallback permissions
 termination semantics
 deadline
-retry permissions
-duplicate-execution tolerance
+retry permissions (subject to universal at-most-once)
+logical invocation identity / replay continuity
 execution-certainty requirements
 response-integrity requirements
 metadata/provenance requirements
@@ -251,30 +252,27 @@ Turnlock-internal provenance structures.
 **Turnlock sources.** `TL-INV-028` (raw LLM inference), `TL-INV-033`
 (execution inspectability).
 
-**Derived compatibility obligation.** Turnlock defines a raw LLM call as a
-semantic operation, not as exactly one physical attempt. `llm-invoke` may
-therefore use retry, fallback, streaming, routing, throttling, caching, and
-multiple physical exchanges with provider infrastructure if and only if
-those mechanisms remain compatible with the `InvocationContract`. Turnlock
-does not need to know each internal provider attempt.
-
-An internal mechanism must not hide a fact that changes the semantic result
-of the invocation:
+**Derived compatibility obligation.** Turnlock defines raw inference as a
+semantic operation, not necessarily one transport exchange. Retry, fallback,
+streaming, routing, throttling and caching may be used only if they preserve
+both the caller's contract and the **universal at-most-once actual inference
+constraint** (§0.6.1; ADR-003). The caller cannot waive that constraint.
 
 ```text
-attempt 1 may have executed
+attempt 1 may already have executed inference
 response lost
-contract forbids duplicate-execution risk
+no proven provider deduplication
 
-=> an automatic retry is not automatically admissible
+=> no second inference allowed
+=> IndeterminateExecution when execution state remains unknown
 ```
 
-The abstraction may hide physical details. It may not hide semantically
-relevant uncertainty or violation.
+A transport retry is admissible only with proof of no previous inference or
+proof of effective inference-boundary deduplication. This does not import
+Turnlock-specific concepts into llm-invoke Product Intent.
 
-**Existing `llm-invoke` semantic support.** §0.6 states that reliability
-mechanisms are admissible only when they preserve the contract and that
-`availability != authority to weaken invocation meaning`; §0.4.4 and §0.2
+**Existing `llm-invoke` semantic support.** §0.6.1 and ADR-003 prohibit
+duplicated actual inference without any caller waiver; §0.4.4 and §0.2
 preserve uncertainty and fail-closed behavior.
 
 **Remaining architecture/implementation implication.** Future reliability
@@ -375,7 +373,7 @@ projection must not be read as introducing them:
 
 - crash recovery;
 - durable persistence;
-- exactly-once provider execution;
+- exactly-once provider execution (not implied by mandatory at-most-once);
 - replay;
 - cross-run reproducibility;
 - stable persistent invocation IDs;
