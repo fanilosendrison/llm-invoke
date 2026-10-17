@@ -27,8 +27,8 @@ name: "Exact llm-runtime baseline and pinned Vercel SDK evidence"
 | Historical Node 20 job | `104178731254` | 28 Vitest files / 644 PASS |
 | Historical build job | `104178863282` | PASS |
 | Invoke Product Intent baseline | `08c736ff3b243895b17cfa148458edf01eaed338` | `docs/specification/llm-invoke-spec.md` |
-| AI SDK experiment | `ai@7.0.141`, `@ai-sdk/openai-compatible@3.0.66`, Node.js 22 | https://github.com/fanilosendrison/llm-invoke/actions/runs/39073654672 |
-| SDK experiment revision | `ad79d9ef16525afcf79346423f3c839029e8a9ba` | 14/14 PASS; zero paid-provider calls |
+| AI SDK experiment | `ai@7.0.141`, `@ai-sdk/openai-compatible@3.0.66`, Node.js 22 | https://github.com/fanilosendrison/llm-invoke/actions/runs/39075284045 |
+| SDK experiment revision | `39aa345ebd53a39000d8e145a3168370247e49e5` | 15/15 PASS; zero paid-provider calls |
 | SDK resolution | SHA-256(`package-lock.json`) `db1a618790d34b8c8b4bd6a0cddd4c2b6488a7254fdfc9d48bc42378305b6245` | CI artifact `vercel-sdk-evidence-ad79d9ef16525afcf79346423f3c839029e8a9ba` (retention 30 days) |
 
 These are **observations from completed existing CI jobs**; historical tests were not re-executed here because the container has no outbound GitHub DNS. The exact-SHA CI run was independently inspected, including its test summaries and job steps. No assertion of independent live re-execution of the old runtime is made.
@@ -53,7 +53,7 @@ Historical CI tests verify the historical runtime's own rules. They **do not** t
 - Historical NIB-S section says 14 events, while `src/types.ts` defines 15 variants; CI behavioral shape is authoritative for actual behavior at the pinned SHA.
 - These are discrepancies in the reference, not failings of the executed historical test suite. Do not silently turn README settings into preservation obligations.
 
-## Vercel AI SDK experiment — 14/14 PASS
+## Vercel AI SDK experiment — 15/15 PASS
 
 Sources: `experiments/vercel-ai-sdk-evidence/probe.test.mjs`, `transport.test.mjs`, and `.github/workflows/vercel-sdk-evidence.yml`. Mock providers and a local HTTP server; **no real provider or gateway contacted**.
 
@@ -73,10 +73,11 @@ Sources: `experiments/vercel-ai-sdk-evidence/probe.test.mjs`, `transport.test.mj
 | HTTP-003 | Fake provider marked its first operation complete then destroyed socket; `maxRetries: 0` => one HTTP request and error | Error does **not** establish whether upstream work occurred |
 | HTTP-004 | Same first-operation-completed-then-socket-reset; `maxRetries: 1` => **two HTTP requests**, second completed, normal result returned | Direct evidence of automatic replay despite first completed upstream operation; universal at-most-once rule forbids relying on such a retry without execution-boundary deduplication |
 | HTTP-005 | Two parallel requests returned correctly attributed `alpha` and `beta` | Basic isolation shown in this simple case only |
+| HTTP-006 | Simulated intermediary made **one SDK→gateway request** and **two gateway→provider requests** despite SDK `maxRetries: 0` after first simulated upstream work completed and lost its reply | Client-side retry suppression does not control hidden downstream retries. **Local proxy simulation only**, not evidence that Vercel AI Gateway actually performed this behavior |
 
 **Interpretation boundary:** a simulated server-side completion is not evidence of a real model completing or billing; it proves a transport sequence where an SDK client cannot distinguish completed upstream work from a failed operation based on its error alone. Each experiment is bounded to the pinned versions and local conditions. No live provider access, billing, gateway reroute, full streaming, headers-rate-limit or credential use was tested.
 
-**Experiment CI detail:** first workflow run `39073430556` failed **before tests** because an unsaved temporary npm manifest did not produce a lockfile. This harness defect was corrected. Subsequent core mock run `39073483842` passed 9/9 with `ai@7.0.141`; complete run `39073654672` passed 14/14 after pinning the OpenAI-compatible adapter and transitive resolution for that run. Do not count harness setup failure as evidence of SDK functional failure.
+**Experiment CI detail:** first workflow run `39073430556` failed **before tests** because an unsaved temporary npm manifest did not produce a lockfile. This harness defect was corrected. Subsequent core mock run `39073483842` passed 9/9 with `ai@7.0.141`; complete run `39073654672` passed 14/14 after pinning the OpenAI-compatible adapter and transitive resolution for that run. The extended complete run `39075284045` passed 15/15 including the simulated hidden proxy retry, with the **same dependency lockfile SHA-256**. Do not count harness setup failure as evidence of SDK functional failure.
 
 ## Crosswalk into the original assessment
 
@@ -111,7 +112,7 @@ Sources: `experiments/vercel-ai-sdk-evidence/probe.test.mjs`, `transport.test.mj
 ## Assessment outcome
 
 `HISTORICAL_BASELINE=GREEN_AT_EXACT_SHA`  
-`SDK_MOCK_AND_LOCAL_HTTP_PROBES=14/14_PASS`  
+`SDK_MOCK_AND_LOCAL_HTTP_PROBES=15/15_PASS`  
 `HISTORICAL_PARITY=UNDETERMINED`  
 `INVOKE_CONFORMANCE=NOT_YET_TESTED`  
 `PRODUCT_INTENT_CHANGED=NO`  
