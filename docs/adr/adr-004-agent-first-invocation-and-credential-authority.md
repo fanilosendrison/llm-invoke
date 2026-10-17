@@ -6,10 +6,10 @@ asset_type: "architecture-decision-record"
 domain: "llm-invoke"
 severity: "strict"
 name: "Establish agent-first invocation and credential authority"
-id: "ADR-003"
+id: "ADR-004"
 status: "accepted"
 date: "2026-10-18"
-decision_body_sha256: "3d88aa5447a5e650bfd9fd6ffa9adb3ccbedd6a368f6637644df9385c2b1980b"
+decision_body_sha256: "ece1df25f85f57688712b83d6e8136788fe678adef326e10accb7131c9ed2c95"
 relation_completeness: "complete"
 relations:
   clarifies: []
@@ -18,19 +18,20 @@ relations:
   supersedes: []
   confirms:
     - "ADR-002"
+    - "ADR-003"
 governs:
   - "agent-first invocation adoption and explicit invocation-parameter authority"
   - "credential-resolution and secret-authority boundary"
 ---
 
-# ADR-003: Establish agent-first invocation and credential authority
+# ADR-004: Establish agent-first invocation and credential authority
 
 - **Status:** Accepted
 - **Date:** 2026-10-18
 - **Governs:** agent-first invocation adoption, explicit invocation-parameter
   authority, and the credential-resolution boundary
 - **Amends:** ADR-001
-- **Confirms:** ADR-002
+- **Confirms:** ADR-002 and ADR-003
 
 ## Context
 
@@ -54,12 +55,15 @@ must not claim evidence or parity that the audit has not established.
 
 This decision amends ADR-001 by making additional product requirements explicit;
 it neither removes nor reverses ADR-001's authority hierarchy. It confirms
-ADR-002 without changing the Turnlock boundary.
+ADR-002 without changing the Turnlock boundary and confirms ADR-003 without
+weakening universal at-most-once actual LLM inference.
 
 The following decisions are accepted:
 
 1. `llm-invoke` prioritizes agent-first adoption for software construction
-   without becoming an agent, harness, or orchestrator.
+   without becoming an agent, harness, or orchestrator. Adoption convenience
+   cannot weaken universal at-most-once actual LLM inference or any other
+   invocation guarantee.
 2. The standard conceptual invocation surface is minimal and based on provider,
    model, reasoning when requested, and prompt or messages as input. This is a
    product-interface direction, not a type or implemented API.
@@ -68,7 +72,8 @@ The following decisions are accepted:
 4. Provider- and model-specific reasoning modes have no automatic universal
    equivalence.
 5. Outcomes remain explicit and mechanically interpretable, and execution
-   uncertainty must be preserved rather than converted into success.
+   uncertainty must be preserved rather than converted into success or used to
+   justify another inference.
 6. `llm-invoke` owns a credential-resolution and credential-use boundary but
    does not intrinsically own durable secret storage, creation, revocation, or
    rotation.
@@ -79,8 +84,10 @@ The following decisions are accepted:
 9. Vercel AI SDK is a preferred realization candidate that has not yet been
    selected or qualified.
 10. Relevant historical guarantees must be preserved through explicit
-    comparison and evidence; parity with `llm-runtime` is not claimed without
-    conformance tests.
+    comparison and evidence only when they conform to the current Product
+    Intent. Historical retry mechanisms that may cause a second inference for
+    one logical invocation must not be preserved as guarantees, and parity with
+    `llm-runtime` is not claimed without conformance tests.
 
 Section 0 of the specification remains the sole consolidated normative product
 contract. This ADR records decision provenance and does not become a second
@@ -91,7 +98,8 @@ independently maintained copy of Product Intent.
 Low-friction integration must result from composition and abstraction of
 provider authentication, execution-integrity checks, retry safety, termination
 interpretation, and outcome classification. It must not result from reducing
-guarantees or concealing uncertainty.
+guarantees, concealing uncertainty, or permitting a second actual inference for
+a logical invocation.
 
 A concise invocation surface makes the common construction path accessible to
 agents and other callers while direct contractual authority prevents that
@@ -113,6 +121,9 @@ secret-management choice universal.
   remain undecided.
 - Doppler and the current personal credential registry may be supported by an
   independent adapter but are not universal core dependencies.
+- Agent-first mechanisms and imported historical behavior remain subordinate to
+  universal at-most-once actual inference. A historical retry that may cause a
+  second inference is non-conformant rather than a guarantee to preserve.
 - No implementation, backend qualification, or historical parity is established
   by this decision.
 
