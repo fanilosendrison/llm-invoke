@@ -9,7 +9,7 @@ name: "At-most-once actual inference per logical invocation"
 id: "ADR-003"
 status: "accepted"
 date: "2026-10-18"
-decision_body_sha256: "cdea99bc893ac8eaa4efb15b7b9565f41e7c3ca748a3d86a6bb1d9a01b97f226"
+decision_body_sha256: "bafcb5236f3de73b147f1fc7ebeb39795e0c0bb7dfa5d70a1ad32c01a8a01f78"
 relation_completeness: "complete"
 relations:
   clarifies: []
@@ -27,8 +27,8 @@ governs:
   through repository review.
 - **Date:** 2026-10-18
 - **Amends:** ADR-001
-- **Fingerprint convention:** SHA-256 of the UTF-8 `## Decision` section,
-  trimmed at end and terminated with exactly one LF.
+- **Fingerprint convention:** SHA-256 of the UTF-8 content from
+  `## Context` (inclusive) through EOF, including the final LF.
 
 ## Context
 
