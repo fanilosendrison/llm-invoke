@@ -40,7 +40,11 @@ Before changing product semantics, architecture, or preparing implementation
 work, read:
 
 1. `docs/specification/llm-invoke-spec.md`;
-2. the ADRs governing the affected concepts; and
+2. the ADRs governing the affected concepts, including
+   [`ADR-003`](docs/adr/adr-003-at-most-once-llm-inference.md) and
+   [`ADR-004`](docs/adr/adr-004-agent-first-invocation-and-credential-authority.md)
+   before modifying retry behavior, the invocation interface, or credential
+   resolution; and
 3. every applicable parent workspace instruction.
 
 ## Derivation rule
@@ -84,6 +88,18 @@ those responsibilities and ecosystem boundaries are decided.
 
 Keep `llm-invoke` backend-neutral and autonomous. Turnlock is an important
 prospective consumer, not a source of `llm-invoke` semantics.
+
+Universal at-most-once inference is non-waivable.
+
+Agent-first adoption must not weaken invocation guarantees. Do not turn
+`llm-invoke` into an agent, harness, or orchestrator. Treat explicitly requested
+invocation parameters as contractual conditions, and do not infer equivalence
+between provider-specific reasoning controls.
+
+Resolve credentials through an independent boundary without imposing a
+universal secret source. Keep any personal Doppler adapter separate from the
+product core. Do not present a definitive API, adapter, backend, or runtime
+implementation at this stage.
 
 Keep invocation execution integrity separate from semantic truth. A verified
 invocation contract does not establish that model output is true, correct,
