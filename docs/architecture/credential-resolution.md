@@ -133,6 +133,42 @@ This projection prescribes no secret-distribution mechanism for those
 environments. When no resolver and usable credentials are available, no
 invocation may begin under an invented or substituted identity.
 
+## Authorized OpenAI ChatGPT-plan OAuth integration
+
+[ADR-005](../adr/adr-005-openai-chatgpt-plan-oauth-inference.md) records the
+product decision for authorized direct inference through eligible ChatGPT-plan
+OAuth. The [OpenAI ChatGPT-plan OAuth qualification projection](openai-chatgpt-plan-oauth-qualification.md)
+records current provider constraints and future qualification scenarios, not an
+accepted runtime architecture or completed qualification.
+
+OpenAI API-key profiles and ChatGPT-plan OAuth profiles represent distinct
+access and billing modes. An explicitly selected account, workspace, profile,
+or authentication mode cannot be silently replaced. Missing credentials,
+renewal failure, model unavailability, or exhausted subscription quota must not
+silently switch identity or fall back to separately billed API-key usage. When
+no mode is selected explicitly, only an authorized, unambiguous resolution
+policy may choose one.
+
+Identity authentication, authorization for direct subscription-funded
+inference, and caller-owned invocation acceptance conditions are separate.
+An existing Codex login or token does not establish direct-inference permission
+or route eligibility. Successful OAuth authentication does not establish
+`VerifiedSuccess`, contract satisfaction, or universal at-most-once execution.
+Credential selection remains distinct from contract evaluation; account or
+profile identity is contractual only when explicitly required by the caller.
+
+Integration must remain possible in ephemeral or remote personal self-hosted
+environments, including VPSs and VMs, where official OpenAI rules permit it.
+This is not a promise that every deployment is eligible. Token lifecycle,
+renewal coordination, storage, host identities, and secure credential-transfer
+mechanisms remain open implementation decisions requiring future qualification.
+No OAuth mechanism is implemented or qualified by this projection.
+
+Doppler remains an optional personal adapter, not universal infrastructure.
+Neither environment variables nor a particular OAuth infrastructure are
+mandatory core credential sources. This integration adds no Codex agent,
+app-server, backend, persistence, or retry requirement.
+
 ## Universal boundary
 
 ```text
