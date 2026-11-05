@@ -20,8 +20,9 @@ This section is normative. It is the primary expression of the current
 `llm-invoke` product contract and is ratified by
 [ADR-001](../adr/adr-001-make-product-intent-govern-invocation-semantics.md),
 then extended by
-[ADR-003](../adr/adr-003-at-most-once-llm-inference.md) and
-[ADR-004](../adr/adr-004-agent-first-invocation-and-credential-authority.md).
+[ADR-003](../adr/adr-003-at-most-once-llm-inference.md),
+[ADR-004](../adr/adr-004-agent-first-invocation-and-credential-authority.md), and
+[ADR-005](../adr/adr-005-openai-chatgpt-plan-oauth-inference.md).
 Lower-level requirements, architecture, tests, and implementation must be
 derived in this order:
 
@@ -457,6 +458,9 @@ A proposed architecture or implementation is not product-conformant if it:
 - presents a merely submitted reasoning setting as proof of unobservable
   internal cognitive activity;
 - arbitrarily chooses among ambiguous credential profiles;
+- treats an existing ChatGPT or Codex login as sufficient authorization for direct plan-funded inference without establishing the required permissions and route eligibility;
+- silently changes an explicitly selected OpenAI authentication mode or billing path, including switching from ChatGPT-plan OAuth to separately billed API-key usage;
+- claims that ChatGPT subscription ownership universally establishes model entitlement, request eligibility, unlimited usage, or execution-path conformance;
 - exposes secrets in errors, logs, traces, results, or persisted evidence;
 - makes a particular secret vault mandatory for the universal product;
 - requires callers to reconstruct the guarantees needed for invocation
@@ -608,6 +612,13 @@ there is neither an explicit selection nor an authorized default rule, no
 arbitrary selection is permitted. Missing, inaccessible, or ambiguous
 credentials must not trigger a silent authentication-identity change.
 
+Credential profiles may represent distinct authentication modes, including
+OpenAI API-key authentication and ChatGPT-plan OAuth. The applicable resolution
+policy must distinguish these modes and preserve the authority of explicit
+selection as required by §0.15. Credential selection remains distinct from
+invocation-contract evaluation; an account or profile identity becomes a
+contractual condition only when the caller explicitly requires it.
+
 Secret values must not appear in public outcomes, errors, logs, traces, or
 persisted evidence. Retrieval must remain compatible with the security
 constraints of the execution environment. A credential reference alone never
@@ -652,14 +663,38 @@ adoption. Any parity claim requires conformance evidence and appropriate tests.
 This update claims neither Vercel AI SDK conformance nor parity with
 `llm-runtime` and does not duplicate the separate historical audit.
 
+### 0.15 OpenAI ChatGPT-plan OAuth for direct LLM inference
+
+`llm-invoke` must support, as a product capability, direct programmatic inference using OpenAI models through an eligible and officially authorized ChatGPT-plan OAuth access mode.
+
+This capability is distinct from OpenAI API-key authentication. An eligible caller must be able to use authorized ChatGPT-plan access without being required to supply a separately billed OpenAI API key for that invocation path.
+
+This requirement does not assert that every ChatGPT or Codex subscription, account, workspace, application, environment, model, or request is eligible. Eligibility, granted permissions, applicable usage limits, available models, and provider policy remain external constraints that must be established for the selected route.
+
+ChatGPT-plan OAuth is an authentication and inference-access mode. It is not an agent execution mode. Direct inference must not inherently require starting a Codex agent, Codex app-server, coding harness, autonomous tool loop, or workflow orchestrator.
+
+An existing Codex CLI login, OAuth credential file, or authenticated session is not by itself evidence of authorization to perform direct ChatGPT-plan inference. Authorization must be established through an officially supported mechanism with the permissions required for the requested inference route.
+
+The applicable credential-resolution policy must distinguish OpenAI API-key profiles from ChatGPT-plan OAuth profiles. Explicit selection of an authentication mode must not be silently replaced. If no mode is explicitly selected, only an authorized, unambiguous resolution policy may choose one.
+
+Failure of eligibility, consent, permissions, credential availability, token renewal, model access, quota, or execution-route admission must not cause silent substitution of another account, workspace, credential profile, authentication mode, or billing path.
+
+In particular, failure of a ChatGPT-plan OAuth route must not silently fall back to a separately billed OpenAI API-key route. A caller may initiate a genuinely separate operation under another explicitly authorized route, but this cannot disguise replay of a possibly executed logical invocation.
+
+ChatGPT-plan OAuth remains subordinate to all existing invocation-contract requirements and to universal at-most-once actual LLM inference. Authentication success, model availability, provider admission, or a completed transport response does not establish `VerifiedSuccess` without sufficient evidence of the applicable contract conditions.
+
+Unsupported or inadequately evidenced execution routes must fail closed. The product must not claim model availability, authorization, unlimited consumption, billing treatment, or execution integrity that has not been established.
+
+The precise OAuth protocol, provider endpoint, token lifecycle, host identity mechanism, transport requirements, backend adapter, and deployment realization are not fixed by this Product Intent. These are external integration and implementation matters that must be qualified against current official provider requirements.
+
 ## 1. Current specification scope
 
 This specification establishes Product Intent, including universal at-most-once
 actual inference, agent-first adoption, the contractual authority of explicitly
 supplied invocation parameters, user-visible success semantics, minimum outcome
-distinctions, the credential-resolution boundary, and other authority
-boundaries. It does not yet claim a complete invariant set or select
-implementation mechanisms.
+distinctions, the credential-resolution boundary, authorized OpenAI ChatGPT-plan
+OAuth for direct inference, and other authority boundaries. It does not yet
+claim a complete invariant set or select implementation mechanisms.
 
 Future work may derive stable system invariants, constraints, and architecture
 only when they are necessary consequences of Section 0 or are introduced by an
@@ -673,6 +708,13 @@ The following remain intentionally open:
 - definitively selected provider and backend;
 - package architecture;
 - actual credential and backend adapters;
+- OAuth client realization for direct OpenAI model access through eligible
+  ChatGPT subscriptions;
+- token lifecycle and renewal coordination;
+- support for multiple accounts and workspaces;
+- self-hosted environments and host identities;
+- qualification of OAuth execution paths against invocation-contract and
+  universal at-most-once requirements;
 - inference-boundary evidence acquisition and normalization mechanisms;
 - logical invocation identity continuity across recovery;
 - outcome representation and serialization;
@@ -685,7 +727,8 @@ The following remain intentionally open:
 - deployment models; and
 - conformance tests and tooling.
 
-None of these open elements is represented as implemented. Historical
+None of these open elements is represented as implemented. No OAuth mechanism
+or execution path is implemented or qualified by this decision. Historical
 `llm-runtime` mechanisms, if any, are not promoted to invariants by existence.
 Any future adoption must be justified from this Product Intent and must conform
 to universal at-most-once actual inference.
