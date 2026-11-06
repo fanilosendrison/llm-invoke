@@ -23,6 +23,10 @@ Credential resolution, backend execution, and invocation-contract evaluation
 remain separate responsibilities. Universal at-most-once actual inference is a
 non-waivable requirement.
 
+Authorized direct OpenAI inference through eligible ChatGPT-plan OAuth is a
+product requirement distinct from API-key access; no corresponding adapter is
+implemented yet.
+
 This README is a non-normative entry point. The current product contract lives
 in the [normative specification](docs/specification/llm-invoke-spec.md).
 Architectural decision history begins with
@@ -50,6 +54,10 @@ implementation work.
   at-most-once actual inference is non-waivable.
 - [ADR-004](docs/adr/adr-004-agent-first-invocation-and-credential-authority.md)
   — why agent-first invocation and credential authority extend Product Intent.
+- [ADR-005](docs/adr/adr-005-openai-chatgpt-plan-oauth-inference.md) — why
+  authorized direct OpenAI inference through ChatGPT-plan OAuth is required.
+- [OpenAI ChatGPT-plan OAuth qualification projection](docs/architecture/openai-chatgpt-plan-oauth-qualification.md)
+  — non-normative conditions and future qualification scenarios.
 - [At-most-once inference derivation](docs/architecture/at-most-once-inference-derivation.md)
   — non-normative verification and backend-admissibility gates.
 - [Turnlock compatibility projection](docs/architecture/turnlock-compatibility.md)

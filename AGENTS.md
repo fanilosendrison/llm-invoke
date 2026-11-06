@@ -44,8 +44,11 @@ work, read:
    [`ADR-003`](docs/adr/adr-003-at-most-once-llm-inference.md) and
    [`ADR-004`](docs/adr/adr-004-agent-first-invocation-and-credential-authority.md)
    before modifying retry behavior, the invocation interface, or credential
-   resolution; and
-3. every applicable parent workspace instruction.
+   resolution;
+3. [`ADR-005`](docs/adr/adr-005-openai-chatgpt-plan-oauth-inference.md) before
+   modifying OpenAI credentials, authentication-mode selection, subscription
+   and billing handling, or OAuth adapters; and
+4. every applicable parent workspace instruction.
 
 ## Derivation rule
 
@@ -100,6 +103,13 @@ Resolve credentials through an independent boundary without imposing a
 universal secret source. Keep any personal Doppler adapter separate from the
 product core. Do not present a definitive API, adapter, backend, or runtime
 implementation at this stage.
+
+Do not treat existing Codex credentials, login, or an authenticated session as
+universal authorization for direct ChatGPT-plan inference. Establish the granted
+permissions and selected route's official eligibility. Preserve explicit OpenAI
+authentication-mode and billing-path selections; never silently switch from
+ChatGPT-plan OAuth to separately billed API-key usage. Follow Section 0.15 of
+the specification without inferring an implemented or qualified OAuth adapter.
 
 Keep invocation execution integrity separate from semantic truth. A verified
 invocation contract does not establish that model output is true, correct,
